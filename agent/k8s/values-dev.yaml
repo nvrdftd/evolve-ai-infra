@@ -1,0 +1,142 @@
+application:
+  applicationName: agent-service
+
+  deployment:
+    replicas: 2
+    image:
+      repository: ghcr.io/your-org/evolve-ai-infra/agent
+      tag: latest
+      pullPolicy: Always
+
+    # Security context
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1001
+      fsGroup: 1001
+      readOnlyRootFilesystem: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+
+    # Probes
+    livenessProbe:
+      enabled: true
+      httpGet:
+        path: /health
+        port: 3000
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+
+    readinessProbe:
+      enabled: true
+      httpGet:
+        path: /health
+        port: 3000
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 2
+
+    # Resources
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+    # Environment variables from ConfigMap
+    env:
+      NODE_ENV:
+        value: "development"
+      PORT:
+        value: "3000"
+      GOOGLE_LOCATION:
+        value: "us-central1"
+      LANGSMITH_TRACING:
+        value: "true"
+
+    # Environment variables from Secrets
+    envFrom:
+      - secretRef:
+          name: agent-secrets
+
+    # Volumes
+    volumes:
+      - name: google-credentials
+        secret:
+          secretName: google-service-account
+          optional: true
+
+    volumeMounts:
+      - name: google-credentials
+        mountPath: /var/secrets/google
+        readOnly: true
+
+  # Service
+  service:
+    enabled: true
+    ports:
+      - port: 80
+        targetPort: 3000
+        protocol: TCP
+        name: http
+    type: LoadBalancer
+    annotations:
+      service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+      service.beta.kubernetes.io/aws-load-balancer-internal: "true"
+
+  # ServiceAccount
+  serviceAccount:
+    enabled: true
+    name: agent-service-sa
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/agent-service-role-dev
+
+  # Autoscaling
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  # Pod Disruption Budget
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+  # Ingress (optional)
+  ingress:
+    enabled: false
+    # Uncomment to enable
+    # className: nginx
+    # annotations:
+    #   cert-manager.io/cluster-issuer: letsencrypt-prod
+    # hosts:
+    #   - host: agent-dev.yourdomain.com
+    #     paths:
+    #       - path: /
+    #         pathType: Prefix
+    # tls:
+    #   - secretName: agent-dev-tls
+    #     hosts:
+    #       - agent-dev.yourdomain.com
+
+  # Pod labels
+  labels:
+    app: agent-service
+    environment: development
+
+  # Pod annotations
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "3000"
+    prometheus.io/path: "/metrics"
+
+  # Namespace
+  namespace: agent-dev

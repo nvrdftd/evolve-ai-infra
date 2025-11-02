@@ -1,0 +1,29 @@
+{
+  "name": "agent",
+  "version": "1.0.0",
+  "description": "An intelligent agent runs as a k8s operator for infra management",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "nodemon --exec ts-node src/index.ts",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Lung C. Huang",
+  "license": "MIT",
+  "dependencies": {
+    "@langchain/core": "^1.0.2",
+    "@langchain/google-vertexai": "^1.0.0",
+    "@langchain/langgraph": "^1.0.1",
+    "cors": "^2.8.5",
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.5",
+    "@types/node": "^24.9.2",
+    "nodemon": "^3.1.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}
