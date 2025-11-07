@@ -80,6 +80,11 @@ variable "cluster_enabled_log_types" {
 }
 
 # General Node Group Configuration
+variable "enable_general_nodes" {
+  description = "Enable general node group for standard workloads"
+  type        = bool
+  default     = false
+}
 variable "general_node_instance_types" {
   description = "Instance types for general purpose node group"
   type        = list(string)
@@ -133,4 +138,17 @@ variable "gpu_node_max_size" {
   description = "Maximum number of GPU nodes"
   type        = number
   default     = 2
+}
+
+# GitHub OIDC Configuration
+variable "github_repositories" {
+  description = "List of GitHub repositories allowed to use OIDC (format: repo:owner/repo:*)"
+  type        = list(string)
+  default     = []
+}
+
+variable "github_actions_policy_arns" {
+  description = "List of IAM policy ARNs to attach to the GitHub Actions role"
+  type        = list(string)
+  default     = []
 }

@@ -26,8 +26,8 @@ provider "aws" {
       Environment = var.environment
       Project     = var.project_name
       ManagedBy   = "Terraform"
-      Owner = "Lung"
-      Repository = "evolve-ai-infra"
+      Owner       = "Lung"
+      Repository  = "evolve-ai-infra"
     }
   }
 }
@@ -73,6 +73,7 @@ module "eks" {
   cluster_enabled_log_types            = var.cluster_enabled_log_types
 
   # General Node Group Configuration
+  enable_general_nodes        = var.enable_general_nodes
   general_node_instance_types = var.general_node_instance_types
   general_node_desired_size   = var.general_node_desired_size
   general_node_min_size       = var.general_node_min_size
@@ -86,7 +87,7 @@ module "eks" {
   gpu_node_max_size       = var.gpu_node_max_size
 
   tags = {
-    Name = "${var.project_name}-${var.environment}-eks"
+    Name                                                           = "${var.project_name}-${var.environment}-eks"
     "kubernetes.io/cluster/${var.project_name}-${var.environment}" = "owned"
   }
 
@@ -97,9 +98,9 @@ module "eks" {
 module "eks_addons" {
   source = "../../modules/eks-addons"
 
-  cluster_name       = module.eks.cluster_name
-  oidc_provider_arn  = module.eks.oidc_provider_arn
-  oidc_provider_url  = module.eks.cluster_oidc_issuer_url
+  cluster_name      = module.eks.cluster_name
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_provider_url = module.eks.cluster_oidc_issuer_url
 
   # Enable essential addons
   enable_ebs_csi_driver = true
@@ -108,4 +109,21 @@ module "eks_addons" {
   enable_kube_proxy     = true
 
   depends_on = [module.eks]
+}
+
+# GitHub OIDC Provider for GitHub Actions
+module "github_oidc" {
+  source = "../../modules/github-oidc"
+
+  role_name = "${var.project_name}-${var.environment}-github-actions"
+
+  # Allow GitHub Actions from your repository to assume this role
+  github_repositories = var.github_repositories
+
+  # Attach managed policies for Terraform operations
+  iam_policy_arns = var.github_actions_policy_arns
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-github-oidc"
+  }
 }
