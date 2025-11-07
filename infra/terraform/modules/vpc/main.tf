@@ -1,10 +1,11 @@
-# Data source for availability zones
+# Data source for availability zones (only used if not explicitly provided)
 data "aws_availability_zones" "available" {
+  count = length(var.availability_zones) > 0 ? 0 : 1
   state = "available"
 }
 
 locals {
-  azs = length(var.availability_zones) > 0 ? var.availability_zones : slice(data.aws_availability_zones.available.names, 0, max(length(var.public_subnet_cidrs), length(var.private_subnet_cidrs)))
+  azs = length(var.availability_zones) > 0 ? var.availability_zones : slice(data.aws_availability_zones.available[0].names, 0, max(length(var.public_subnet_cidrs), length(var.private_subnet_cidrs)))
 }
 
 # VPC
