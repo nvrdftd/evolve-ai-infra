@@ -1,50 +1,85 @@
 output "cluster_id" {
-  description = "EKS cluster ID"
+  description = "The name/id of the EKS cluster"
   value       = aws_eks_cluster.main.id
 }
 
 output "cluster_name" {
-  description = "EKS cluster name"
+  description = "The name of the EKS cluster"
   value       = aws_eks_cluster.main.name
 }
 
+output "cluster_arn" {
+  description = "The Amazon Resource Name (ARN) of the cluster"
+  value       = aws_eks_cluster.main.arn
+}
+
 output "cluster_endpoint" {
-  description = "EKS cluster endpoint"
+  description = "Endpoint for EKS control plane"
   value       = aws_eks_cluster.main.endpoint
 }
 
+output "cluster_version" {
+  description = "The Kubernetes server version for the cluster"
+  value       = aws_eks_cluster.main.version
+}
+
 output "cluster_security_group_id" {
-  description = "Cluster security group ID"
+  description = "Security group ID attached to the EKS cluster"
   value       = aws_security_group.cluster.id
 }
 
+output "node_security_group_id" {
+  description = "Security group ID attached to the EKS nodes"
+  value       = aws_security_group.node.id
+}
+
 output "cluster_iam_role_arn" {
-  description = "Cluster IAM role ARN"
+  description = "IAM role ARN of the EKS cluster"
   value       = aws_iam_role.cluster.arn
 }
 
 output "cluster_certificate_authority_data" {
-  description = "Cluster CA certificate"
+  description = "Base64 encoded certificate data required to communicate with the cluster"
   value       = aws_eks_cluster.main.certificate_authority[0].data
   sensitive   = true
 }
 
 output "cluster_oidc_issuer_url" {
-  description = "OIDC issuer URL"
-  value       = aws_eks_cluster.main.identity[0].oidc[0].issuer
+  description = "The URL on the EKS cluster OIDC Issuer"
+  value       = try(aws_eks_cluster.main.identity[0].oidc[0].issuer, "")
 }
 
 output "oidc_provider_arn" {
-  description = "OIDC provider ARN"
+  description = "ARN of the OIDC Provider for EKS"
   value       = aws_iam_openid_connect_provider.cluster.arn
 }
 
-output "vpc_id" {
-  description = "VPC ID"
-  value       = aws_vpc.main.id
+output "node_iam_role_arn" {
+  description = "IAM role ARN for EKS nodes"
+  value       = aws_iam_role.node.arn
 }
 
-output "node_role_arn" {
-  description = "Node IAM role ARN"
-  value       = aws_iam_role.node.arn
+output "node_iam_role_name" {
+  description = "IAM role name for EKS nodes"
+  value       = aws_iam_role.node.name
+}
+
+output "general_node_group_id" {
+  description = "EKS node group ID for general purpose nodes"
+  value       = var.enable_general_nodes ? aws_eks_node_group.general[0].id : null
+}
+
+output "general_node_group_status" {
+  description = "Status of the general purpose EKS node group"
+  value       = var.enable_general_nodes ? aws_eks_node_group.general[0].status : null
+}
+
+output "gpu_node_group_id" {
+  description = "EKS node group ID for GPU nodes"
+  value       = var.enable_gpu_nodes ? aws_eks_node_group.gpu[0].id : null
+}
+
+output "gpu_node_group_status" {
+  description = "Status of the GPU EKS node group"
+  value       = var.enable_gpu_nodes ? aws_eks_node_group.gpu[0].status : null
 }
