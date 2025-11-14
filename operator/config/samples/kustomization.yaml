@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- intelligence_v1_evolveagent.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples

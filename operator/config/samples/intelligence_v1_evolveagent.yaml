@@ -1,0 +1,9 @@
+apiVersion: intelligence.nvrdftd.github.io/v1
+kind: EvolveAgent
+metadata:
+  labels:
+    app.kubernetes.io/name: operator
+    app.kubernetes.io/managed-by: kustomize
+  name: evolveagent-sample
+spec:
+  # TODO(user): Add fields here

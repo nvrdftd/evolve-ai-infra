@@ -8,4 +8,14 @@ layout:
 - go.kubebuilder.io/v4
 projectName: operator
 repo: github.com/nvrdftd/evolve-ai-infra
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: nvrdftd.github.io
+  group: intelligence
+  kind: EvolveAgent
+  path: github.com/nvrdftd/evolve-ai-infra/api/v1
+  version: v1
 version: "3"
