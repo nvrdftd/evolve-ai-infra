@@ -1,8 +1,11 @@
 import { Router, Request, Response, NextFunction } from "express";
-import { streamAgent } from "./graph";
+import { AgentConfig } from "./agentConfig";
 import { AppError } from "./middleware";
+import { MetricsService } from "./services/metricsService";
+import { knowledgeBaseService } from "./services/knowledgeBaseService";
 
 export const apiRouter = Router();
+const agentConfig = new AgentConfig(new MetricsService(), new knowledgeBaseService());
 
 apiRouter.post("/agent/invoke", async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -20,7 +23,7 @@ apiRouter.post("/agent/invoke", async (req: Request, res: Response, next: NextFu
     res.setHeader("Connection", "keep-alive");
 
     // Stream the agent's response
-    await streamAgent(message, (chunk) => {
+    await agentConfig.streamAgent(message, (chunk) => {
       res.write(`data: ${JSON.stringify(chunk)}\n\n`);
     });
 
