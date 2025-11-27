@@ -192,36 +192,3 @@ export class AgentConfig {
     this.agent = this.buildAgent();
   }
 }
-
-// async function toolNode(state: MessagesStateType) {
-//   const lastMessage = state.messages[state.messages.length - 1];
-
-//   if (lastMessage == null || lastMessage._getType() !== "ai") {
-//     return { messages: [] };
-//   }
-
-//   const aiMessage = lastMessage as AIMessage;
-//   const result: ToolMessage[] = [];
-//   for (const toolCall of aiMessage.tool_calls ?? []) {
-//     const tool = toolsByName[toolCall.name];
-//     const observation = await tool.invoke(toolCall);
-//     result.push(observation);
-//   }
-
-//   return { messages: result };
-// }
-
-// const multiplyTool = tool(
-//   async ({ a, b }: { a: number; b: number }) => {
-//     return a * b;
-//   },
-//   {
-//     name: "multiply",
-//     description: "Multiply two numbers",
-//     schema: z.object({
-//       a: z.number().describe("First number"),
-//       b: z.number().describe("Second number"),
-//     }),
-//   }
-// );
-// const modelWithTools = model.bindTools(tools);
