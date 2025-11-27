@@ -29,6 +29,15 @@ const KnowledgeTopics = z.array(
   z.string().describe("A topic relevant to infrastructure incidents")
 )
 
+const RemedyPlan = z.object({
+  type: z.enum(['Scaling', 'Restart', 'ConfigUpdate', 'ResourceLimit']),
+  targetKind: z.string(),
+  targetName: z.string(),
+  targetNamespace: z.string(),
+  parameters: z.record(z.string(), z.string()).optional(),
+  reasoning: z.string(),
+});
+
 
 export class AgentConfig {
   private modelName: string;
@@ -59,6 +68,7 @@ export class AgentConfig {
     ]);
     return {
       messages: [new AIMessage(`Extracted knowledge topics: ${topics.join(", ")}`)],
+      llmCalls: 1
     };
   }
 
@@ -77,18 +87,34 @@ export class AgentConfig {
     // Analyze the messages to determine root cause by LLM
     const message = await this.model.invoke([
       new SystemMessage(
-        "You are an expert incident analyst. Based on the following conversation and metrics, identify the root cause of the incident."
+        "You are an expert incident analyst. Based on the following context and metrics, identify the root cause of any possible incident. \
+        It is not always to have an incident regarding the application service behavior \
+        Provide a concise explanation of the root cause if anything."
       ),
       ...state.messages,
     ]);
 
-    return { messages: [message], llmCalls: 1  };
+    return { messages: [new AIMessage(message)], llmCalls: 1  };
   }
 
-  private async applyRemediation(state: AgentStateType) {
-    // Apply remediation steps based on analysis
-    // Interact with k8s operator
+  private async applyRemedy(state: AgentStateType) {
+    const remedyPlan = await this.model.withStructuredOutput(RemedyPlan).invoke([
+      new SystemMessage(
+        "Based on the root cause analysis, determine the appropriate remediation action. \
+        Consider scaling (increase/decrease replicas), restart (rolling restart), \
+        config updates, or resource limit adjustments."
+      ),
+      ...state.messages,
+    ]);
 
+    // Interact with k8s using k8sService
+    return {
+      messages: [new AIMessage(
+        `Applied remediation: ${remedyPlan.type} for ${remedyPlan.targetKind}/${remedyPlan.targetName}. \
+        Reasoning: ${remedyPlan.reasoning}`
+      )],
+      llmCalls: 1,
+    };
   }
 
   private async needAssistance(state: AgentStateType) {
@@ -121,7 +147,7 @@ export class AgentConfig {
       .addNode("collectMetrics", this.collectMetrics)
       .addNode("analyzeMetrics", this.analyzeMetrics)
       .addNode("retriveKnowledge", this.retriveKnowledge)
-      .addNode("applyRemediation", this.applyRemediation)
+      .addNode("applyRemedy", this.applyRemedy)
       .addNode("findRootCause", this.findRootCause)
       .addNode("verifyResolution", this.verifyResolution)
       .addNode("updateKnowledgeBase", this.updateKnowledgeBase)
@@ -130,8 +156,8 @@ export class AgentConfig {
       .addEdge("collectMetrics", "analyzeMetrics")
       .addEdge("analyzeMetrics", "retriveKnowledge")
       .addEdge("retriveKnowledge", "findRootCause")
-      .addEdge("findRootCause", "applyRemediation")
-      .addEdge("applyRemediation", "verifyResolution")
+      .addEdge("findRootCause", "applyRemedy")
+      .addEdge("applyRemedy", "verifyResolution")
       .addConditionalEdges("verifyResolution", this.shouldContinue, {
         true: "findRootCause",
         false: "generateIncidentReport"
