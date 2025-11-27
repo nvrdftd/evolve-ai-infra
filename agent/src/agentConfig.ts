@@ -73,7 +73,7 @@ export class AgentConfig {
     };
   }
 
-  private async analyzeRootCause(state: AgentStateType) {
+  private async findRootCause(state: AgentStateType) {
     // Analyze the messages to determine root cause by LLM
     const message = await this.model.invoke([
       new SystemMessage(
@@ -122,18 +122,18 @@ export class AgentConfig {
       .addNode("analyzeMetrics", this.analyzeMetrics)
       .addNode("retriveKnowledge", this.retriveKnowledge)
       .addNode("applyRemediation", this.applyRemediation)
-      .addNode("analyzeRootCause", this.analyzeRootCause)
+      .addNode("findRootCause", this.findRootCause)
       .addNode("verifyResolution", this.verifyResolution)
       .addNode("updateKnowledgeBase", this.updateKnowledgeBase)
       .addNode("generateIncidentReport", this.generateIncidentReport)
       .addEdge(START, "collectMetrics")
       .addEdge("collectMetrics", "analyzeMetrics")
       .addEdge("analyzeMetrics", "retriveKnowledge")
-      .addEdge("retriveKnowledge", "analyzeRootCause")
-      .addEdge("analyzeRootCause", "applyRemediation")
+      .addEdge("retriveKnowledge", "findRootCause")
+      .addEdge("findRootCause", "applyRemediation")
       .addEdge("applyRemediation", "verifyResolution")
       .addConditionalEdges("verifyResolution", this.shouldContinue, {
-        true: "analyzeRootCause",
+        true: "findRootCause",
         false: "generateIncidentReport"
       })
       .addEdge("generateIncidentReport", "updateKnowledgeBase")
