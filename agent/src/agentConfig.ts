@@ -1,6 +1,6 @@
 import { StateGraph, START, END} from "@langchain/langgraph";
 import { registry } from "@langchain/langgraph/zod";
-import { BaseMessage, HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { AIMessage, BaseMessage, HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { ChatVertexAI } from "@langchain/google-vertexai";
 import { z } from "zod";
 import { config } from "./utils";
@@ -24,6 +24,12 @@ const AgentState = z.object({
 
 type AgentStateType = z.infer<typeof AgentState>;
 
+
+const KnowledgeTopics = z.array(
+  z.string().describe("A topic relevant to infrastructure incidents")
+)
+
+
 export class AgentConfig {
   private modelName: string;
   private model: ChatVertexAI;
@@ -38,26 +44,36 @@ export class AgentConfig {
   private collectMetrics(state: AgentStateType) {
     const data = this.metricsService.getMetrics("k8s_workload");
     return {
-      messages: [new SystemMessage(`
-          Metrics collected from Prometheus as follows:
-          ${data ?? 'No data available'}
-        `)],
+      messages: [new SystemMessage(`Metrics collected from Prometheus as follows: ${data ?? 'No data available'}`)]
     }
   }
 
+  private async analyzeMetrics(state: AgentStateType) {
+    const modelWithKnowledgeTopics = this.model.withStructuredOutput(KnowledgeTopics);
+    const topics = await modelWithKnowledgeTopics.invoke([
+      new SystemMessage(
+        "Analyze the following metrics and extract 3 topics that would be relevant for searching a knowledge base about Kubernetes incidents. \
+        Return only comma-separated topics."
+      ),
+      ...state.messages,
+    ]);
+    return {
+      messages: [new AIMessage(`Extracted knowledge topics: ${topics.join(", ")}`)],
+    };
+  }
+
   private async retriveKnowledge(state: AgentStateType) {
-    const relevantWords: string = "example keywords"; // This would be extracted from the state in a real implementation
-    const context = await this.knowledgeBaseService.getKnowledge(relevantWords);
+    const topicsMessage = state.messages[state.messages.length -1];
+    const context = await this.knowledgeBaseService.getKnowledge(topicsMessage.text);
     return {
       messages: [new SystemMessage(`
-          Retrieved knowledge from knowledge base:
+          Retrieved context from knowledge base:
           ${context}
         `)]
     };
   }
 
   private async analyzeRootCause(state: AgentStateType) {
-    
     // Analyze the messages to determine root cause by LLM
     const message = await this.model.invoke([
       new SystemMessage(
@@ -103,6 +119,7 @@ export class AgentConfig {
   private buildAgent() {
     return new StateGraph(AgentState)
       .addNode("collectMetrics", this.collectMetrics)
+      .addNode("analyzeMetrics", this.analyzeMetrics)
       .addNode("retriveKnowledge", this.retriveKnowledge)
       .addNode("applyRemediation", this.applyRemediation)
       .addNode("analyzeRootCause", this.analyzeRootCause)
@@ -110,7 +127,8 @@ export class AgentConfig {
       .addNode("updateKnowledgeBase", this.updateKnowledgeBase)
       .addNode("generateIncidentReport", this.generateIncidentReport)
       .addEdge(START, "collectMetrics")
-      .addEdge("collectMetrics", "retriveKnowledge")
+      .addEdge("collectMetrics", "analyzeMetrics")
+      .addEdge("analyzeMetrics", "retriveKnowledge")
       .addEdge("retriveKnowledge", "analyzeRootCause")
       .addEdge("analyzeRootCause", "applyRemediation")
       .addEdge("applyRemediation", "verifyResolution")
