@@ -237,6 +237,7 @@ resource "aws_eks_node_group" "gpu" {
   subnet_ids      = var.private_subnet_ids
 
   instance_types = var.gpu_node_instance_types
+  ami_type = "AL2023_x86_64_NVIDIA"
   capacity_type  = "ON_DEMAND"
 
   scaling_config {
@@ -251,7 +252,6 @@ resource "aws_eks_node_group" "gpu" {
 
   labels = {
     workload         = "gpu"
-    "nvidia.com/gpu" = "true"
   }
 
   # Taint to ensure only AI/ML workloads are scheduled on these nodes
