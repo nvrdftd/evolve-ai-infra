@@ -67,6 +67,36 @@ resource "aws_eks_addon" "ebs_csi_driver" {
   tags = var.tags
 }
 
+# Default Storage Class for EBS CSI Driver
+resource "kubernetes_storage_class_v1" "ebs_gp3" {
+  count = var.enable_ebs_csi_driver ? 1 : 0
+
+  metadata {
+    name = "gp3"
+    annotations = {
+      # This makes it the default for any PVC that doesn't specify a class
+      "storageclass.kubernetes.io/is-default-class" = "true" 
+    }
+  }
+
+  storage_provisioner = "ebs.csi.aws.com"
+  reclaim_policy      = "Delete"
+  
+  # Ensure the volume is created in the same AZ as the pod
+  volume_binding_mode = "WaitForFirstConsumer" 
+
+  parameters = {
+    type      = "gp3"
+    fsType    = "ext4"
+    encrypted = "true"
+  }
+
+  # Ensure the addon is fully installed before creating the storage class
+  depends_on = [
+    aws_eks_addon.ebs_csi_driver
+  ]
+}
+
 # VPC CNI Addon
 resource "aws_eks_addon" "vpc_cni" {
   count = var.enable_vpc_cni ? 1 : 0

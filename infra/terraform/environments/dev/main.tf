@@ -32,6 +32,20 @@ provider "aws" {
   }
 }
 
+
+# Configure the Kubernetes provider to use the EKS cluster
+provider "kubernetes" {
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    # This assumes you have the AWS CLI installed and configured
+    args = ["eks", "get-token", "--cluster-name", module.eks.cluster_name, "--region", var.aws_region]
+  }
+}
+
 # Get current AWS account information
 data "aws_caller_identity" "current" {}
 
