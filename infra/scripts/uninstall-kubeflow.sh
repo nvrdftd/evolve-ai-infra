@@ -3,21 +3,12 @@
 # Run before `terraform destroy` to cleanly remove cluster workloads.
 set -euo pipefail
 
-KUBEFLOW_VERSION="v1.9.1"
+KUBEFLOW_VERSION="26.03"
 MANIFESTS_DIR=$(mktemp -d)
 trap 'rm -rf "${MANIFESTS_DIR}"' EXIT
 
 # ---------------------------------------------------------------------------
-# 1. Model serving resources
-# ---------------------------------------------------------------------------
-echo "==> Removing model serving resources..."
-kubectl delete -f infra/k8s/qwen2.5-7b-vllm.yaml --ignore-not-found
-kubectl delete -f infra/k8s/hf-storage.yaml --ignore-not-found
-kubectl delete -f infra/k8s/hf-secret.yaml --ignore-not-found
-kubectl delete -f infra/k8s/namespace-llm.yaml --ignore-not-found
-
-# ---------------------------------------------------------------------------
-# 2. Kubeflow
+# 1. Kubeflow
 # ---------------------------------------------------------------------------
 echo "==> Removing Kubeflow ${KUBEFLOW_VERSION}..."
 git clone --depth 1 --branch "${KUBEFLOW_VERSION}" \
@@ -27,13 +18,13 @@ kustomize build example | kubectl delete -f - --ignore-not-found
 cd -
 
 # ---------------------------------------------------------------------------
-# 3. DCGM Exporter
+# 2. DCGM Exporter
 # ---------------------------------------------------------------------------
 echo "==> Removing DCGM Exporter..."
 helm uninstall dcgm-exporter -n monitoring --ignore-not-found
 
 # ---------------------------------------------------------------------------
-# 4. kube-prometheus-stack
+# 3. kube-prometheus-stack
 # ---------------------------------------------------------------------------
 echo "==> Removing kube-prometheus-stack..."
 helm uninstall kube-prometheus-stack -n monitoring --ignore-not-found
@@ -53,7 +44,7 @@ kubectl delete crd \
 kubectl delete namespace monitoring --ignore-not-found
 
 # ---------------------------------------------------------------------------
-# 5. NVIDIA device plugin
+# 4. NVIDIA device plugin
 # ---------------------------------------------------------------------------
 echo "==> Removing NVIDIA device plugin..."
 helm uninstall nvdp -n nvidia-device-plugin --ignore-not-found

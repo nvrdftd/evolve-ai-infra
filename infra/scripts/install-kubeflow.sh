@@ -76,7 +76,9 @@ git clone --depth 1 --branch "${KUBEFLOW_VERSION}" \
 cd "${MANIFESTS_DIR}"
 
 echo "==> Installing Kubeflow (single-command, may take 15-20 min)..."
-while ! kustomize build example | kubectl apply -f -; do
+# --server-side avoids the 262144-byte annotation limit hit by large CRDs (inferenceservices, jobsets, etc.)
+# --force-conflicts lets server-side apply win on field ownership conflicts from prior apply attempts
+while ! kustomize build example | kubectl apply --server-side --force-conflicts -f -; do
   echo "Retrying to apply resources..."; sleep 20
 done
 
