@@ -31,7 +31,25 @@ helm upgrade --install nvdp nvdp/nvidia-device-plugin \
   --set tolerations[0].effect=NoSchedule
 
 # ---------------------------------------------------------------------------
-# 2. Kubeflow v1.9 — single-command install
+# 2. DCGM Exporter
+#    Exposes per-GPU metrics (utilization, memory, temperature, power) to
+#    Prometheus on port 9400. Runs only on GPU nodes.
+#    https://nvidia.github.io/dcgm-exporter/helm-charts
+# ---------------------------------------------------------------------------
+echo "==> Installing DCGM Exporter..."
+helm repo add dcgm-exporter https://nvidia.github.io/dcgm-exporter/helm-charts
+helm repo update dcgm-exporter
+helm upgrade --install dcgm-exporter dcgm-exporter/dcgm-exporter \
+  --version 3.3.5 \
+  --namespace monitoring \
+  --create-namespace \
+  --set tolerations[0].key=nvidia.com/gpu \
+  --set tolerations[0].operator=Exists \
+  --set tolerations[0].effect=NoSchedule \
+  --set nodeSelector.workload=gpu
+
+# ---------------------------------------------------------------------------
+# 3. Kubeflow v1.9 — single-command install
 #    The `example` kustomization bundles all components: cert-manager, Istio,
 #    KServe v0.13 (LLMInferenceService + vLLM), Knative Serving, Pipelines,
 #    Training Operator, Notebooks, Central Dashboard, Dex, and Profiles.
@@ -48,7 +66,7 @@ while ! kustomize build example | kubectl apply -f -; do
 done
 
 # ---------------------------------------------------------------------------
-# 3. Kueue
+# 4. Kueue
 #    GPU quota management — works alongside Kubeflow Training Operator and
 #    KServe for admission control of GPU workloads.
 # ---------------------------------------------------------------------------
@@ -62,7 +80,6 @@ echo ""
 echo "Bootstrap complete."
 echo ""
 echo "Next steps:"
-echo "  kubectl apply -f infra/k8s/monitoring/dcgm-exporter.yaml"
 echo "  kubectl apply -f infra/k8s/namespace-llm.yaml"
 echo "  kubectl apply -f infra/k8s/hf-secret.yaml"
 echo "  kubectl apply -f infra/k8s/hf-storage.yaml"
