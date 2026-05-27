@@ -9,7 +9,7 @@
 # Run once after `terraform apply`. Safe to re-run (idempotent).
 set -euo pipefail
 
-KUBEFLOW_VERSION="v1.9.1"
+KUBEFLOW_VERSION="26.03"
 MANIFESTS_DIR=$(mktemp -d)
 trap 'rm -rf "${MANIFESTS_DIR}"' EXIT
 
@@ -26,9 +26,9 @@ helm repo update nvdp
 helm upgrade --install nvdp nvdp/nvidia-device-plugin \
   --namespace nvidia-device-plugin \
   --create-namespace \
-  --set tolerations[0].key=nvidia.com/gpu \
-  --set tolerations[0].operator=Exists \
-  --set tolerations[0].effect=NoSchedule
+  --set "tolerations[0].key=nvidia.com/gpu" \
+  --set "tolerations[0].operator=Exists" \
+  --set "tolerations[0].effect=NoSchedule"
 
 # ---------------------------------------------------------------------------
 # 2. Prometheus (kube-prometheus-stack)
@@ -58,10 +58,10 @@ helm repo update dcgm-exporter
 helm upgrade --install dcgm-exporter dcgm-exporter/dcgm-exporter \
   --namespace monitoring \
   --create-namespace \
-  --set tolerations[0].key=nvidia.com/gpu \
-  --set tolerations[0].operator=Exists \
-  --set tolerations[0].effect=NoSchedule \
-  --set nodeSelector.workload=gpu
+  --set "tolerations[0].key=nvidia.com/gpu" \
+  --set "tolerations[0].operator=Exists" \
+  --set "tolerations[0].effect=NoSchedule" \
+  --set "nodeSelector.workload=gpu"
 
 # ---------------------------------------------------------------------------
 # 4. Kubeflow v1.9 — single-command install
