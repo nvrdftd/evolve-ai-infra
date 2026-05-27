@@ -18,10 +18,18 @@ trap 'rm -rf "${MANIFESTS_DIR}"' EXIT
 #    The AL2023_x86_64_NVIDIA AMI includes drivers + container toolkit, but the
 #    device plugin DaemonSet (which registers nvidia.com/gpu as a K8s resource)
 #    must still be deployed separately.
+#    Installed via Helm (recommended by https://github.com/NVIDIA/k8s-device-plugin).
 # ---------------------------------------------------------------------------
 echo "==> Installing NVIDIA device plugin..."
-kubectl apply -f \
-  https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.17.0/deployments/static/nvidia-device-plugin.yml
+helm repo add nvdp https://nvidia.github.io/k8s-device-plugin
+helm repo update nvdp
+helm upgrade --install nvdp nvdp/nvidia-device-plugin \
+  --version 0.17.0 \
+  --namespace nvidia-device-plugin \
+  --create-namespace \
+  --set tolerations[0].key=nvidia.com/gpu \
+  --set tolerations[0].operator=Exists \
+  --set tolerations[0].effect=NoSchedule
 
 # ---------------------------------------------------------------------------
 # 3. cert-manager
