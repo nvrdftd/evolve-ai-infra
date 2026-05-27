@@ -83,12 +83,12 @@ variable "cluster_enabled_log_types" {
 variable "enable_general_nodes" {
   description = "Enable general node group for standard workloads"
   type        = bool
-  default     = false
+  default     = true
 }
 variable "general_node_instance_types" {
   description = "Instance types for general purpose node group"
   type        = list(string)
-  default     = ["t3.medium"]
+  default     = ["t3.large"]
 }
 
 variable "general_node_desired_size" {
@@ -113,7 +113,7 @@ variable "general_node_max_size" {
 variable "enable_gpu_nodes" {
   description = "Enable GPU node group for ML workloads"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "gpu_node_instance_types" {
@@ -125,7 +125,7 @@ variable "gpu_node_instance_types" {
 variable "gpu_node_desired_size" {
   description = "Desired number of GPU nodes"
   type        = number
-  default     = 0
+  default     = 1
 }
 
 variable "gpu_node_min_size" {

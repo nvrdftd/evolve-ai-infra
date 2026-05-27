@@ -125,6 +125,14 @@ module "eks_addons" {
   depends_on = [module.eks]
 }
 
+# Monitoring Module (GPU metrics via DCGM exporter + AWS Observability Accelerator)
+module "monitoring" {
+  source       = "../../modules/monitoring"
+  region       = var.aws_region
+  cluster_name = module.eks.cluster_name
+  depends_on   = [module.eks_addons]
+}
+
 # GitHub OIDC Provider for GitHub Actions
 module "github_oidc" {
   source = "../../modules/github-oidc"
