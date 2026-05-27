@@ -3,8 +3,6 @@ kind: LLMInferenceService
 metadata:
   name: qwen2-5-7b-instruct
   namespace: llm
-  labels:
-    kueue.x-k8s.io/queue-name: llm-queue
 spec:
   model:
     uri: hf://Qwen/Qwen2.5-7B-Instruct

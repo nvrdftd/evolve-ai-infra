@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
-# Bootstrap K8s components: NVIDIA device plugin, Kubeflow v1.9 (single-command
-# install per https://github.com/kubeflow/manifests#install-with-a-single-command),
-# and Kueue for GPU quota management.
+# Bootstrap K8s components: NVIDIA device plugin, DCGM Exporter, and
+# Kubeflow v1.9 (single-command install per
+# https://github.com/kubeflow/manifests#install-with-a-single-command).
+# Kubeflow Training Operator v1.8 (bundled in v1.9) has native Kueue
+# integration — no separate Kueue install required.
 #
 # Prerequisites: kubectl, kustomize, helm, git configured against the target cluster.
 # Run once after `terraform apply`. Safe to re-run (idempotent).
 set -euo pipefail
 
 KUBEFLOW_VERSION="v1.9.1"
-KUEUE_VERSION="v0.10.1"
 MANIFESTS_DIR=$(mktemp -d)
 trap 'rm -rf "${MANIFESTS_DIR}"' EXIT
 
@@ -50,9 +51,9 @@ helm upgrade --install dcgm-exporter dcgm-exporter/dcgm-exporter \
 
 # ---------------------------------------------------------------------------
 # 3. Kubeflow v1.9 — single-command install
-#    The `example` kustomization bundles all components: cert-manager, Istio,
-#    KServe v0.13 (LLMInferenceService + vLLM), Knative Serving, Pipelines,
-#    Training Operator, Notebooks, Central Dashboard, Dex, and Profiles.
+#    Bundles: cert-manager, Istio, KServe v0.13 (LLMInferenceService + vLLM),
+#    Knative Serving, Pipelines, Training Operator v1.8, Notebooks,
+#    Central Dashboard, Dex, and Profiles.
 #    The retry loop handles CRD propagation delays between apply waves.
 # ---------------------------------------------------------------------------
 echo "==> Cloning Kubeflow manifests ${KUBEFLOW_VERSION}..."
@@ -65,17 +66,6 @@ while ! kustomize build example | kubectl apply -f -; do
   echo "Retrying to apply resources..."; sleep 20
 done
 
-# ---------------------------------------------------------------------------
-# 4. Kueue
-#    GPU quota management — works alongside Kubeflow Training Operator and
-#    KServe for admission control of GPU workloads.
-# ---------------------------------------------------------------------------
-echo "==> Installing Kueue ${KUEUE_VERSION}..."
-kubectl apply --server-side -f \
-  "https://github.com/kubernetes-sigs/kueue/releases/download/${KUEUE_VERSION}/manifests.yaml"
-kubectl wait --for=condition=Available deployment/kueue-controller-manager \
-  -n kueue-system --timeout=120s
-
 echo ""
 echo "Bootstrap complete."
 echo ""
@@ -83,7 +73,6 @@ echo "Next steps:"
 echo "  kubectl apply -f infra/k8s/namespace-llm.yaml"
 echo "  kubectl apply -f infra/k8s/hf-secret.yaml"
 echo "  kubectl apply -f infra/k8s/hf-storage.yaml"
-echo "  kubectl apply -f infra/k8s/kueue/"
 echo "  kubectl apply -f infra/k8s/qwen2.5-7b-vllm.yaml"
 echo ""
 echo "Dashboard: kubectl port-forward svc/istio-ingressgateway -n istio-system 8080:80"
