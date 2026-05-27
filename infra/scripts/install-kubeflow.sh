@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Bootstrap K8s components: NVIDIA device plugin, DCGM Exporter, and
-# Kubeflow v1.9 (single-command install per
+# Bootstrap K8s components: NVIDIA device plugin, Prometheus stack, DCGM Exporter,
+# and Kubeflow v1.9 (single-command install per
 # https://github.com/kubeflow/manifests#install-with-a-single-command).
 # Kubeflow Training Operator v1.8 (bundled in v1.9) has native Kueue
 # integration — no separate Kueue install required.
@@ -24,7 +24,6 @@ echo "==> Installing NVIDIA device plugin..."
 helm repo add nvdp https://nvidia.github.io/k8s-device-plugin
 helm repo update nvdp
 helm upgrade --install nvdp nvdp/nvidia-device-plugin \
-  --version 0.17.0 \
   --namespace nvidia-device-plugin \
   --create-namespace \
   --set tolerations[0].key=nvidia.com/gpu \
@@ -32,7 +31,23 @@ helm upgrade --install nvdp nvdp/nvidia-device-plugin \
   --set tolerations[0].effect=NoSchedule
 
 # ---------------------------------------------------------------------------
-# 2. DCGM Exporter
+# 2. Prometheus (kube-prometheus-stack)
+#    Installs Prometheus, Grafana, Alertmanager, and the Prometheus Operator.
+#    Must run before DCGM Exporter so the ServiceMonitor CRD is available.
+# ---------------------------------------------------------------------------
+echo "==> Installing kube-prometheus-stack..."
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update prometheus-community
+helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+  --namespace monitoring \
+  --create-namespace \
+  --set grafana.enabled=true \
+  --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false
+kubectl wait --for=condition=Available deployment/kube-prometheus-stack-grafana \
+  -n monitoring --timeout=180s
+
+# ---------------------------------------------------------------------------
+# 3. DCGM Exporter
 #    Exposes per-GPU metrics (utilization, memory, temperature, power) to
 #    Prometheus on port 9400. Runs only on GPU nodes.
 #    https://nvidia.github.io/dcgm-exporter/helm-charts
@@ -41,7 +56,6 @@ echo "==> Installing DCGM Exporter..."
 helm repo add dcgm-exporter https://nvidia.github.io/dcgm-exporter/helm-charts
 helm repo update dcgm-exporter
 helm upgrade --install dcgm-exporter dcgm-exporter/dcgm-exporter \
-  --version 3.3.5 \
   --namespace monitoring \
   --create-namespace \
   --set tolerations[0].key=nvidia.com/gpu \
@@ -50,7 +64,7 @@ helm upgrade --install dcgm-exporter dcgm-exporter/dcgm-exporter \
   --set nodeSelector.workload=gpu
 
 # ---------------------------------------------------------------------------
-# 3. Kubeflow v1.9 — single-command install
+# 4. Kubeflow v1.9 — single-command install
 #    Bundles: cert-manager, Istio, KServe v0.13 (LLMInferenceService + vLLM),
 #    Knative Serving, Pipelines, Training Operator v1.8, Notebooks,
 #    Central Dashboard, Dex, and Profiles.
