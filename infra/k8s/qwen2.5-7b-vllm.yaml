@@ -1,0 +1,45 @@
+apiVersion: serving.kserve.io/v1alpha1
+kind: LLMInferenceService
+metadata:
+  name: qwen2-5-7b-instruct
+  namespace: llm
+  labels:
+    kueue.x-k8s.io/queue-name: llm-queue
+spec:
+  model:
+    uri: hf://Qwen/Qwen2.5-7B-Instruct
+    name: Qwen/Qwen2.5-7B-Instruct
+  replicas: 1
+
+  template:
+    containers:
+      - name: main
+        args:
+          - "--dtype"
+          - "bfloat16"
+          - "--max-model-len"
+          - "8192"
+          - "--gpu-memory-utilization"
+          - "0.90"
+        resources:
+          requests:
+            nvidia.com/gpu: "1"
+            cpu: "4"
+            memory: "20Gi"
+          limits:
+            nvidia.com/gpu: "1"
+            cpu: "4"
+            memory: "20Gi"
+
+    nodeSelector:
+      workload: gpu
+
+    tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+
+  router:
+    gateway: {}
+    route: {}
+    scheduler: {}
