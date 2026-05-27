@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# Bootstrap K8s components: cert-manager, Istio,
-# Kubeflow v1.9 (includes KServe v0.13 + vLLM support), and Kueue.
+# Bootstrap K8s components: NVIDIA device plugin, Kubeflow v1.9 (single-command
+# install per https://github.com/kubeflow/manifests#install-with-a-single-command),
+# and Kueue for GPU quota management.
 #
-# Prerequisites (must be satisfied before running):
-#   - kubectl, kustomize, istioctl, git configured against the target cluster
-#
+# Prerequisites: kubectl, kustomize, helm, git configured against the target cluster.
 # Run once after `terraform apply`. Safe to re-run (idempotent).
 set -euo pipefail
 
@@ -15,10 +14,10 @@ trap 'rm -rf "${MANIFESTS_DIR}"' EXIT
 
 # ---------------------------------------------------------------------------
 # 1. NVIDIA device plugin
-#    The AL2023_x86_64_NVIDIA AMI includes drivers + container toolkit, but the
-#    device plugin DaemonSet (which registers nvidia.com/gpu as a K8s resource)
-#    must still be deployed separately.
-#    Installed via Helm (recommended by https://github.com/NVIDIA/k8s-device-plugin).
+#    The AL2023_x86_64_NVIDIA AMI includes drivers + container toolkit, but
+#    the device plugin DaemonSet (which registers nvidia.com/gpu as a K8s
+#    schedulable resource) must be deployed separately.
+#    https://github.com/NVIDIA/k8s-device-plugin
 # ---------------------------------------------------------------------------
 echo "==> Installing NVIDIA device plugin..."
 helm repo add nvdp https://nvidia.github.io/k8s-device-plugin
@@ -32,67 +31,26 @@ helm upgrade --install nvdp nvdp/nvidia-device-plugin \
   --set tolerations[0].effect=NoSchedule
 
 # ---------------------------------------------------------------------------
-# 3. cert-manager
-#    Required by Kubeflow webhooks. Installing standalone first avoids a race
-#    with Kubeflow's own cert-manager kustomize step.
-# ---------------------------------------------------------------------------
-echo "==> Installing cert-manager..."
-kubectl apply -f \
-  https://github.com/cert-manager/cert-manager/releases/download/v1.16.3/cert-manager.yaml
-kubectl wait --for=condition=Available deployment/cert-manager-webhook \
-  -n cert-manager --timeout=180s
-
-# ---------------------------------------------------------------------------
-# 4. Istio (minimal profile)
-#    Required for Kubeflow multi-tenancy, traffic routing, and auth integration.
-# ---------------------------------------------------------------------------
-echo "==> Installing Istio (minimal profile)..."
-istioctl install -y --set profile=minimal
-kubectl wait --for=condition=Available deployment/istiod \
-  -n istio-system --timeout=180s
-
-# ---------------------------------------------------------------------------
-# 5. Kubeflow v1.9
-#    Includes: KServe v0.13 (LLMInferenceService + vLLM), Knative Serving,
-#    Pipelines, Training Operator, Notebooks, Central Dashboard, Dex, Profiles.
-#    kserve.sh is NOT used — this install provides KServe.
+# 2. Kubeflow v1.9 — single-command install
+#    The `example` kustomization bundles all components: cert-manager, Istio,
+#    KServe v0.13 (LLMInferenceService + vLLM), Knative Serving, Pipelines,
+#    Training Operator, Notebooks, Central Dashboard, Dex, and Profiles.
+#    The retry loop handles CRD propagation delays between apply waves.
 # ---------------------------------------------------------------------------
 echo "==> Cloning Kubeflow manifests ${KUBEFLOW_VERSION}..."
 git clone --depth 1 --branch "${KUBEFLOW_VERSION}" \
   https://github.com/kubeflow/manifests.git "${MANIFESTS_DIR}"
 cd "${MANIFESTS_DIR}"
 
-apply_component() {
-  local component="$1"
-  echo "--> Applying ${component}"
-  until kustomize build "${component}" | kubectl apply -f -; do
-    echo "    Retrying ${component} in 10s..."; sleep 10
-  done
-}
-
-echo "==> Installing Kubeflow components..."
-apply_component "common/cert-manager/kubeflow-issuer/base"
-apply_component "common/istio-1-22/istio-crds/base"
-apply_component "common/istio-1-22/istio-install/overlays/oauth2-proxy"
-apply_component "common/oidc-authservice/base"
-apply_component "common/dex/overlays/istio"
-apply_component "common/knative/knative-serving/overlays/gateways"
-apply_component "contrib/kserve/kserve"
-apply_component "contrib/kserve/models-web-app/overlays/kubeflow"
-apply_component "common/kubeflow-namespace/base"
-apply_component "common/kubeflow-roles/base"
-apply_component "common/istio-1-22/kubeflow-istio-resources/base"
-apply_component "apps/centraldashboard/upstream/overlays/kserve"
-apply_component "apps/pipeline/upstream/env/platform-agnostic-multi-user"
-apply_component "apps/training-operator/upstream/overlays/kubeflow"
-apply_component "apps/jupyter/notebook-controller/upstream/overlays/kubeflow"
-apply_component "apps/jupyter/jupyter-web-app/upstream/overlays/istio"
-apply_component "apps/profiles/upstream/overlays/kubeflow"
-apply_component "common/user-namespace/base"
+echo "==> Installing Kubeflow (single-command, may take 15-20 min)..."
+while ! kustomize build example | kubectl apply -f -; do
+  echo "Retrying to apply resources..."; sleep 20
+done
 
 # ---------------------------------------------------------------------------
-# 6. Kueue
-#    GPU quota management — works alongside Kubeflow Training Operator and KServe.
+# 3. Kueue
+#    GPU quota management — works alongside Kubeflow Training Operator and
+#    KServe for admission control of GPU workloads.
 # ---------------------------------------------------------------------------
 echo "==> Installing Kueue ${KUEUE_VERSION}..."
 kubectl apply --server-side -f \
@@ -101,7 +59,7 @@ kubectl wait --for=condition=Available deployment/kueue-controller-manager \
   -n kueue-system --timeout=120s
 
 echo ""
-echo "Bootstrap complete (~15-20 min total)."
+echo "Bootstrap complete."
 echo ""
 echo "Next steps:"
 echo "  kubectl apply -f infra/k8s/namespace-llm.yaml"
