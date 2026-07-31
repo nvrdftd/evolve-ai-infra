@@ -190,7 +190,7 @@ resource "aws_security_group_rule" "cluster_ingress_node_https" {
 
 # General Purpose Node Group
 resource "aws_eks_node_group" "general" {
-  count = var.enable_general_nodes ? 1 : 0
+  count           = var.enable_general_nodes ? 1 : 0
   cluster_name    = aws_eks_cluster.main.name
   node_group_name = "${var.cluster_name}-general"
   node_role_arn   = aws_iam_role.node.arn
@@ -227,6 +227,79 @@ resource "aws_eks_node_group" "general" {
   ]
 }
 
+# Launch template for GPU nodes.
+#
+# Its main job is ephemeral storage: g5/g6/g4dn instances ship a local NVMe disk
+# (250 GB on g5.xlarge) that EKS does NOT use out of the box, leaving pods to share
+# the small EBS root volume. The user data below RAIDs the local NVMe and moves
+# /var/lib/kubelet and /var/lib/containerd onto it, so container images, emptyDir
+# volumes and downloaded model weights all consume local disk instead.
+#
+# No image_id is set, so EKS still picks the AMI from the node group's ami_type and
+# appends its own nodeadm bootstrap section to this MIME document.
+resource "aws_launch_template" "gpu" {
+  count = var.enable_gpu_nodes ? 1 : 0
+
+  name_prefix            = "${var.cluster_name}-gpu-"
+  description            = "GPU nodes for ${var.cluster_name}"
+  update_default_version = true
+
+  block_device_mappings {
+    device_name = "/dev/xvda"
+
+    ebs {
+      volume_size           = var.gpu_node_root_volume_size
+      volume_type           = var.gpu_node_root_volume_type
+      encrypted             = true
+      delete_on_termination = true
+    }
+  }
+
+  # EKS managed node groups default to IMDSv2 with a hop limit of 2 so pods can still
+  # reach IMDS; a launch template overrides that default, so restate it here.
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 2
+  }
+
+  # setup-local-disks ships with the EKS AL2023 AMI. "raid0" stripes every local NVMe
+  # disk, mounts it at /mnt/k8s-disks/0 and binds the kubelet/containerd directories to
+  # it. It is a no-op on instance types without local NVMe.
+  user_data = var.gpu_node_use_instance_store ? base64encode(<<-EOT
+    MIME-Version: 1.0
+    Content-Type: multipart/mixed; boundary="//"
+
+    --//
+    Content-Type: text/x-shellscript; charset="us-ascii"
+
+    #!/bin/bash
+    set -o errexit
+    set -o pipefail
+    /bin/setup-local-disks raid0
+
+    --//--
+  EOT
+  ) : null
+
+  tag_specifications {
+    resource_type = "instance"
+
+    tags = merge(
+      var.tags,
+      {
+        Name = "${var.cluster_name}-gpu"
+      }
+    )
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+
+  tags = var.tags
+}
+
 # GPU Node Group (Spot)
 resource "aws_eks_node_group" "gpu" {
   count = var.enable_gpu_nodes ? 1 : 0
@@ -237,8 +310,13 @@ resource "aws_eks_node_group" "gpu" {
   subnet_ids      = var.private_subnet_ids
 
   instance_types = var.gpu_node_instance_types
-  ami_type = "AL2023_x86_64_NVIDIA"
+  ami_type       = "AL2023_x86_64_NVIDIA"
   capacity_type  = "ON_DEMAND"
+
+  launch_template {
+    id      = aws_launch_template.gpu[0].id
+    version = aws_launch_template.gpu[0].latest_version
+  }
 
   scaling_config {
     desired_size = var.gpu_node_desired_size
@@ -251,7 +329,7 @@ resource "aws_eks_node_group" "gpu" {
   }
 
   labels = {
-    workload         = "gpu"
+    workload = "gpu"
   }
 
   # Taint to ensure only AI/ML workloads are scheduled on these nodes

@@ -100,6 +100,11 @@ module "eks" {
   gpu_node_min_size       = var.gpu_node_min_size
   gpu_node_max_size       = var.gpu_node_max_size
 
+  # Ephemeral storage: use the g5.xlarge local 250 GB NVMe instead of the EBS root volume
+  gpu_node_root_volume_size   = var.gpu_node_root_volume_size
+  gpu_node_root_volume_type   = var.gpu_node_root_volume_type
+  gpu_node_use_instance_store = var.gpu_node_use_instance_store
+
   tags = {
     Name                                                           = "${var.project_name}-${var.environment}-eks"
     "kubernetes.io/cluster/${var.project_name}-${var.environment}" = "owned"

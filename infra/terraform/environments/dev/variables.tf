@@ -140,6 +140,24 @@ variable "gpu_node_max_size" {
   default     = 2
 }
 
+variable "gpu_node_root_volume_size" {
+  description = "Root EBS volume size (GiB) for GPU nodes"
+  type        = number
+  default     = 100
+}
+
+variable "gpu_node_root_volume_type" {
+  description = "Root EBS volume type for GPU nodes"
+  type        = string
+  default     = "gp3"
+}
+
+variable "gpu_node_use_instance_store" {
+  description = "Use the GPU instance's local NVMe disk as Kubernetes ephemeral storage"
+  type        = bool
+  default     = true
+}
+
 # GitHub OIDC Configuration
 variable "github_repositories" {
   description = "List of GitHub repositories allowed to use OIDC (format: repo:owner/repo:*)"

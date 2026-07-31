@@ -110,6 +110,29 @@ variable "gpu_node_max_size" {
   default     = 2
 }
 
+variable "gpu_node_root_volume_size" {
+  description = "Root EBS volume size (GiB) for GPU nodes. Only holds the OS when the instance store is used for ephemeral storage."
+  type        = number
+  default     = 100
+}
+
+variable "gpu_node_root_volume_type" {
+  description = "Root EBS volume type for GPU nodes"
+  type        = string
+  default     = "gp3"
+}
+
+variable "gpu_node_use_instance_store" {
+  description = <<-EOT
+    Mount the instance's local NVMe store (250 GB on g5.xlarge) as Kubernetes ephemeral
+    storage, so container images, emptyDir volumes and downloaded model weights land on
+    local NVMe instead of the EBS root volume. Requires an instance family with local
+    NVMe (g5, g6, g4dn, i3, ...). Data is lost when the node stops or is replaced.
+  EOT
+  type        = bool
+  default     = true
+}
+
 # Tags
 variable "tags" {
   description = "Tags to apply to all resources"
